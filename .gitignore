@@ -1,0 +1,18 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.env
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Phase outputs (regeneratable via build CLI)
+out/
+out-*.md
+out-*.png
+spike/screenshots/
+
+# OS
+.DS_Store
