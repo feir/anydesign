@@ -141,6 +141,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
 def _cmd_preflight(args: argparse.Namespace) -> int:
     from design_from_url.preflight import check_npx_design_md
+    from design_from_url.run_report import STATUS_MAP
 
     result = check_npx_design_md()
     if result.ok:
@@ -153,7 +154,9 @@ def _cmd_preflight(args: argparse.Namespace) -> int:
         "warm the cache.",
         file=sys.stderr,
     )
-    return 3
+    # Phase 3a 3a.2: lint_cli_missing wiring (preflight failure means the lint CLI is unreachable)
+    _emit_degraded_warning("lint_cli_missing", STATUS_MAP["lint_cli_missing"][1])
+    return STATUS_MAP["lint_cli_missing"][1]
 
 
 def _cmd_extract(args: argparse.Namespace) -> int:
@@ -210,6 +213,33 @@ def _cmd_aggregate(args: argparse.Namespace) -> int:
     return 0
 
 
+def _emit_degraded_warning(degraded_reason: str, exit_code: int) -> None:
+    """Phase 3a: emit stderr WARNING when CLI is exiting with a non-zero code.
+    Caller has already mapped degraded_reason to exit_code via run_report.STATUS_MAP.
+    """
+    print(
+        f"WARNING: degraded_reason={degraded_reason}; exit_code={exit_code}",
+        file=sys.stderr,
+    )
+
+
+def _validate_url(url: str) -> str:
+    """Phase 3a (3a.2 D3 wiring): basic URL validation. Returns normalized URL or raises ValueError.
+    Wired call site for `url_parse_failed` degraded_reason.
+    """
+    from urllib.parse import urlparse
+    if not url or not isinstance(url, str):
+        raise ValueError(f"URL must be a non-empty string, got {url!r}")
+    parsed = urlparse(url)
+    if parsed.scheme not in ("http", "https", "file"):
+        raise ValueError(
+            f"URL must have http/https/file scheme, got {parsed.scheme!r} from {url!r}"
+        )
+    if not parsed.netloc and parsed.scheme != "file":
+        raise ValueError(f"URL missing host: {url!r}")
+    return url
+
+
 def _cmd_build(args: argparse.Namespace) -> int:
     import os
     import tempfile
@@ -220,6 +250,16 @@ def _cmd_build(args: argparse.Namespace) -> int:
     from design_from_url.registry import build_registry, RegistryGuardError
     from design_from_url.template import build_design_md
     from design_from_url.brand_color import detect_brand_color
+    from design_from_url.renderer import RenderError
+    from design_from_url.run_report import STATUS_MAP
+
+    # Phase 3a 3a.2: URL parse wiring
+    try:
+        _validate_url(args.url)
+    except ValueError as exc:
+        print(f"FATAL: invalid URL: {exc}", file=sys.stderr)
+        _emit_degraded_warning("url_parse_failed", STATUS_MAP["url_parse_failed"][1])
+        return STATUS_MAP["url_parse_failed"][1]
 
     primary = args.primary
     # Screenshot needed for: brand auto-detection (Phase 1.5b) OR --with-llm vision call
@@ -237,12 +277,21 @@ def _cmd_build(args: argparse.Namespace) -> int:
             cleanup_screenshot = True
 
     try:
-        payload = extract_from_url(
-            url=args.url,
-            timeout_s=args.timeout,
-            dismiss_consent=not args.no_consent_dismiss,
-            screenshot_path=screenshot_path,
-        )
+        try:
+            payload = extract_from_url(
+                url=args.url,
+                timeout_s=args.timeout,
+                dismiss_consent=not args.no_consent_dismiss,
+                screenshot_path=screenshot_path,
+            )
+        except RenderError as exc:
+            # Phase 3a 3a.2: render_timeout wiring
+            msg = str(exc).lower()
+            if "timed out" in msg or "timeout" in msg:
+                print(f"FATAL: render timeout: {exc}", file=sys.stderr)
+                _emit_degraded_warning("render_timeout", STATUS_MAP["render_timeout"][1])
+                return STATUS_MAP["render_timeout"][1]
+            raise
 
         if primary is None and not args.no_auto_primary and screenshot_path:
             brand = detect_brand_color(
@@ -280,7 +329,17 @@ def _cmd_build(args: argparse.Namespace) -> int:
             )
         except RegistryGuardError as e:
             print(f"FATAL: {e}", file=sys.stderr)
-            return 4
+            _emit_degraded_warning("registry_empty", STATUS_MAP["registry_empty"][1])
+            return STATUS_MAP["registry_empty"][1]
+
+        # Phase 3a 3a.2: registry_empty wiring (defensive, in case registry has no colors at all)
+        if not registry.colors:
+            print(
+                "FATAL: extracted registry has 0 colors — site may be too unusual to extract",
+                file=sys.stderr,
+            )
+            _emit_degraded_warning("registry_empty", STATUS_MAP["registry_empty"][1])
+            return STATUS_MAP["registry_empty"][1]
 
         cap = args.cap_colors if args.cap_colors > 0 else None
         md = build_design_md(
@@ -308,7 +367,7 @@ def _cmd_build(args: argparse.Namespace) -> int:
                     file=sys.stderr,
                 )
                 return 4
-            return _run_self_lint_loop(
+            loop_exit = _run_self_lint_loop(
                 out_path=args.out,
                 screenshot_path=screenshot_path,
                 registry=registry,
@@ -316,6 +375,20 @@ def _cmd_build(args: argparse.Namespace) -> int:
                 args=args,
                 source_url=payload.get("url") or args.url,
             )
+            # Phase 3a 3a.2: emit stderr WARNING if self-lint loop produced non-zero exit
+            # (the loop itself writes run_report.json with degraded_reason; we surface here)
+            if loop_exit != 0:
+                # The loop already wrote run_report; read its degraded_reason for the warning
+                rr_path = args.out + ".run_report.json"
+                degraded = "unknown"
+                if os.path.exists(rr_path):
+                    try:
+                        with open(rr_path, encoding="utf-8") as f:
+                            degraded = json.load(f).get("degraded_reason") or "unknown"
+                    except Exception:
+                        pass
+                _emit_degraded_warning(str(degraded), loop_exit)
+            return loop_exit
         return 0
     finally:
         if cleanup_screenshot and screenshot_path and os.path.exists(screenshot_path):

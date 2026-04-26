@@ -12,15 +12,31 @@ from typing import Literal
 
 
 # D6.1 enum mapping: (degraded_reason → (final_status, exit_code))
+# Phase 3a (BREAKING): HARD_FAIL was exit 2 in Phase 2; now exit 1.
+# DEGRADED stays at exit 2. PASS stays at 0.
 STATUS_MAP: dict[str | None, tuple[str, int]] = {
     None: ("PASS", 0),
-    "omx_failover": ("HARD_FAIL", 2),
-    "required_field_unresolvable": ("HARD_FAIL", 2),
+    # HARD_FAIL set — no usable output, exit 1
+    "omx_failover": ("HARD_FAIL", 1),
+    "required_field_unresolvable": ("HARD_FAIL", 1),
+    "url_parse_failed": ("HARD_FAIL", 1),
+    "render_timeout": ("HARD_FAIL", 1),
+    "lint_cli_missing": ("HARD_FAIL", 1),
+    "registry_empty": ("HARD_FAIL", 1),
+    # DEGRADED set — output exists but AC not fully met, exit 2
     "prose_retry_exhausted": ("DEGRADED", 2),
+    "prose_partial": ("DEGRADED", 2),
 }
 
 DegradedReason = Literal[
-    "omx_failover", "required_field_unresolvable", "prose_retry_exhausted",
+    "omx_failover",
+    "required_field_unresolvable",
+    "url_parse_failed",
+    "render_timeout",
+    "lint_cli_missing",
+    "registry_empty",
+    "prose_retry_exhausted",
+    "prose_partial",
 ] | None
 FinalStatus = Literal["PASS", "HARD_FAIL", "DEGRADED"]
 

@@ -26,22 +26,37 @@ def test_status_map_pass_when_no_degraded_reason():
     assert STATUS_MAP[None] == ("PASS", 0)
 
 
-def test_status_map_omx_failover_is_hard_fail():
-    assert STATUS_MAP["omx_failover"] == ("HARD_FAIL", 2)
+def test_status_map_omx_failover_is_hard_fail_exit_1():
+    """Phase 3a (BREAKING): HARD_FAIL exit code flipped 2 → 1."""
+    assert STATUS_MAP["omx_failover"] == ("HARD_FAIL", 1)
 
 
-def test_status_map_required_field_unresolvable_is_hard_fail():
-    assert STATUS_MAP["required_field_unresolvable"] == ("HARD_FAIL", 2)
+def test_status_map_required_field_unresolvable_is_hard_fail_exit_1():
+    assert STATUS_MAP["required_field_unresolvable"] == ("HARD_FAIL", 1)
 
 
 def test_status_map_prose_retry_exhausted_is_degraded():
     assert STATUS_MAP["prose_retry_exhausted"] == ("DEGRADED", 2)
 
 
-def test_status_map_covers_all_4_documented_values():
-    """Defensive: D6.1 table has 4 rows; STATUS_MAP must match exactly."""
+@pytest.mark.parametrize("reason", [
+    "url_parse_failed", "render_timeout", "lint_cli_missing", "registry_empty",
+])
+def test_status_map_phase_3a_hard_fail_entries_exit_1(reason):
+    assert STATUS_MAP[reason] == ("HARD_FAIL", 1)
+
+
+def test_status_map_prose_partial_is_degraded_exit_2():
+    assert STATUS_MAP["prose_partial"] == ("DEGRADED", 2)
+
+
+def test_status_map_covers_all_phase_3a_values():
+    """Phase 3a: 9 entries (None + 6 HARD_FAIL + 2 DEGRADED). Exact match required."""
     assert set(STATUS_MAP.keys()) == {
-        None, "omx_failover", "required_field_unresolvable", "prose_retry_exhausted",
+        None,
+        "omx_failover", "required_field_unresolvable",
+        "url_parse_failed", "render_timeout", "lint_cli_missing", "registry_empty",
+        "prose_retry_exhausted", "prose_partial",
     }
 
 
@@ -55,18 +70,22 @@ def test_update_status_pass_path():
     assert r.exit_code == 0
 
 
-def test_update_status_hard_fail_path():
+@pytest.mark.parametrize("reason,expected_status,expected_exit", [
+    ("omx_failover",                 "HARD_FAIL", 1),
+    ("required_field_unresolvable",  "HARD_FAIL", 1),
+    ("url_parse_failed",             "HARD_FAIL", 1),
+    ("render_timeout",               "HARD_FAIL", 1),
+    ("lint_cli_missing",             "HARD_FAIL", 1),
+    ("registry_empty",               "HARD_FAIL", 1),
+    ("prose_retry_exhausted",        "DEGRADED",  2),
+    ("prose_partial",                "DEGRADED",  2),
+])
+def test_update_status_parametric(reason, expected_status, expected_exit):
+    """Parametric: each degraded_reason maps to exact (final_status, exit_code) integer pair."""
     r = _report()
-    r.update_status("omx_failover")
-    assert r.final_status == "HARD_FAIL"
-    assert r.exit_code == 2
-
-
-def test_update_status_degraded_path():
-    r = _report()
-    r.update_status("prose_retry_exhausted")
-    assert r.final_status == "DEGRADED"
-    assert r.exit_code == 2
+    r.update_status(reason)
+    assert r.final_status == expected_status, f"{reason}: status mismatch"
+    assert r.exit_code == expected_exit, f"{reason}: exit code mismatch"
 
 
 # ---- Serialization ----
