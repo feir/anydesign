@@ -121,6 +121,16 @@ def _build_parser() -> argparse.ArgumentParser:
         default="local/gemma4:26b",
         help="LLM model identifier (must be local/...). Default: local/gemma4:26b.",
     )
+    p_build.add_argument(
+        "--with-dark",
+        action="store_true",
+        help=(
+            "Phase 3a: extract both light and dark color schemes from a "
+            "single navigation, then append a `## Dark Mode` section to "
+            "DESIGN.md with token-level diffs. Requires "
+            f"agent-browser >= 0.26.0; runtime probe gates execution."
+        ),
+    )
     p_build.set_defaults(func=_cmd_build)
 
     return parser
@@ -261,6 +271,17 @@ def _cmd_build(args: argparse.Namespace) -> int:
         _emit_degraded_warning("url_parse_failed", STATUS_MAP["url_parse_failed"][1])
         return STATUS_MAP["url_parse_failed"][1]
 
+    # Phase 3a 3a.5: --with-dark capability preflight (fast-fail before any browser work)
+    if getattr(args, "with_dark", False):
+        from design_from_url.dark_mode import (
+            preflight as _dark_preflight, DarkModeUnsupported,
+        )
+        try:
+            _dark_preflight()
+        except DarkModeUnsupported as exc:
+            print(f"FATAL: --with-dark unavailable: {exc}", file=sys.stderr)
+            return 1
+
     primary = args.primary
     # Screenshot needed for: brand auto-detection (Phase 1.5b) OR --with-llm vision call
     needs_screenshot = (primary is None and not args.no_auto_primary) or args.with_llm
@@ -276,14 +297,24 @@ def _cmd_build(args: argparse.Namespace) -> int:
             os.close(fd)
             cleanup_screenshot = True
 
+    dark_payload: dict | None = None
     try:
         try:
-            payload = extract_from_url(
-                url=args.url,
-                timeout_s=args.timeout,
-                dismiss_consent=not args.no_consent_dismiss,
-                screenshot_path=screenshot_path,
-            )
+            if getattr(args, "with_dark", False):
+                from design_from_url.extractor import extract_dual_mode
+                payload, dark_payload = extract_dual_mode(
+                    url=args.url,
+                    timeout_s=args.timeout,
+                    dismiss_consent=not args.no_consent_dismiss,
+                    screenshot_path=screenshot_path,
+                )
+            else:
+                payload = extract_from_url(
+                    url=args.url,
+                    timeout_s=args.timeout,
+                    dismiss_consent=not args.no_consent_dismiss,
+                    screenshot_path=screenshot_path,
+                )
         except RenderError as exc:
             # Phase 3a 3a.2: render_timeout wiring
             msg = str(exc).lower()
@@ -388,11 +419,82 @@ def _cmd_build(args: argparse.Namespace) -> int:
                     except Exception:
                         pass
                 _emit_degraded_warning(str(degraded), loop_exit)
+            # Phase 3a 3a.5: append Dark Mode section after lint loop completes
+            _maybe_emit_dark_section(
+                args.out, registry, dark_payload, args, primary,
+            )
             return loop_exit
+        # No --with-llm path — still honor --with-dark
+        _maybe_emit_dark_section(
+            args.out, registry, dark_payload, args, primary,
+        )
         return 0
     finally:
         if cleanup_screenshot and screenshot_path and os.path.exists(screenshot_path):
             os.unlink(screenshot_path)
+
+
+def _maybe_emit_dark_section(
+    out_path: str | None,
+    primary_registry,
+    dark_payload: dict | None,
+    args,
+    primary: str | None,
+) -> None:
+    """Phase 3a 3a.5: append `## Dark Mode` section to DESIGN.md.
+
+    Builds a dark-mode registry from `dark_payload`, diffs against the
+    primary (light) registry, and appends a markdown table to DESIGN.md
+    when the diff is non-empty. No-ops when `dark_payload` is None or
+    `out_path` is None (stdout-only run).
+    """
+    if dark_payload is None or not out_path:
+        return
+    from design_from_url.aggregator import aggregate_spacing_and_rounded
+    from design_from_url.colors import collect_color_strings, dedupe_colors
+    from design_from_url.dark_mode import build_dark_section, diff_registries
+    from design_from_url.registry import RegistryGuardError, build_registry
+
+    dark_lengths = aggregate_spacing_and_rounded(dark_payload, k_max=args.k_max)
+    dark_clusters = dedupe_colors(
+        collect_color_strings(dark_payload), delta_e_threshold=args.delta_e,
+    )
+    dark_aggregated = {
+        "spacing": dark_lengths["spacing"],
+        "rounded": dark_lengths["rounded"],
+        "colors": [
+            {
+                "representative": c.representative,
+                "frequency": c.frequency,
+                "members": list(c.members),
+            }
+            for c in dark_clusters
+        ],
+    }
+    try:
+        dark_registry = build_registry(
+            dark_aggregated, dark_payload, primary_override=primary,
+        )
+    except RegistryGuardError:
+        print(
+            "INFO: dark-mode registry build failed, omitting Dark Mode section",
+            file=sys.stderr,
+        )
+        return
+    diff = diff_registries(primary_registry, dark_registry)
+    if not diff:
+        print(
+            "INFO: site has no dark styling, omitting Dark Mode section",
+            file=sys.stderr,
+        )
+        return
+    section = build_dark_section(diff)
+    with open(out_path, "a", encoding="utf-8") as f:
+        f.write("\n" + section)
+    print(
+        f"appended Dark Mode section ({len(diff)} differing tokens)",
+        file=sys.stderr,
+    )
 
 
 def _patch_design_md(

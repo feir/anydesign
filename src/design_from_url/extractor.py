@@ -336,6 +336,31 @@ def _annotate_defaults(payload: dict[str, Any]) -> dict[str, Any]:
     return payload
 
 
+def _extract_with_session(
+    session: Any,
+    info: Any,
+    *,
+    screenshot_path: str | None = None,
+) -> dict[str, Any]:
+    """Run the JS extraction pass against an already-opened session.
+
+    Caller owns the session lifecycle. Phase 3a 3a.5a: extracted from
+    `extract_from_url` so dark-mode dual-run can reuse the same session
+    state across light → dark scheme flips (single navigation; agent-browser
+    `set media` toggles colors without re-render).
+    """
+    js = _build_extraction_js(DEFAULT_COMPUTED_SELECTORS, _SAMPLES_PER_SELECTOR)
+    raw = session.eval_js(js)
+    if screenshot_path:
+        session.screenshot(screenshot_path)
+    raw["url"] = info.final_url
+    raw["page_title"] = info.page_title
+    raw["html_size"] = info.html_size
+    if screenshot_path:
+        raw["screenshot_path"] = screenshot_path
+    return _annotate_defaults(raw)
+
+
 def extract_from_url(
     url: str,
     *,
@@ -346,25 +371,66 @@ def extract_from_url(
 ) -> dict[str, Any]:
     """End-to-end: render URL, run JS extraction, return annotated dict.
 
-    If `screenshot_path` is provided, a viewport screenshot is captured into
-    that path within the same session (avoids reopening the browser later
-    for Phase 1.5b brand-color detection).
+    Thin wrapper over `_extract_with_session` that owns the session
+    open/close. If `screenshot_path` is provided, a viewport screenshot
+    is captured within the same session.
     """
     from design_from_url.renderer import open_session, DEFAULT_SESSION
 
-    js = _build_extraction_js(DEFAULT_COMPUTED_SELECTORS, _SAMPLES_PER_SELECTOR)
     with open_session(
         url,
         session_name=session_name or DEFAULT_SESSION,
         timeout_s=timeout_s,
         dismiss_consent_banners=dismiss_consent,
     ) as (session, info):
-        raw = session.eval_js(js)
-        if screenshot_path:
-            session.screenshot(screenshot_path)
-    raw["url"] = info.final_url
-    raw["page_title"] = info.page_title
-    raw["html_size"] = info.html_size
-    if screenshot_path:
-        raw["screenshot_path"] = screenshot_path
-    return _annotate_defaults(raw)
+        return _extract_with_session(
+            session, info, screenshot_path=screenshot_path,
+        )
+
+
+def extract_dual_mode(
+    url: str,
+    *,
+    timeout_s: int = 30,
+    dismiss_consent: bool = True,
+    session_name: str | None = None,
+    screenshot_path: str | None = None,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Extract under both light and dark color schemes from a single navigation.
+
+    Returns ``(light_payload, dark_payload)``. Manual session lifecycle —
+    `open_session` always navigates internally, so we'd lose state by reusing
+    it; here we own the open / set_viewport / open_url / close pipeline and
+    flip color scheme between two `_extract_with_session` calls.
+
+    Only the light run captures a screenshot (dark would shadow it). Caller
+    aggregates both payloads downstream.
+    """
+    from design_from_url.renderer import (
+        BrowserSession, DEFAULT_SESSION, RenderInfo, VIEWPORT,
+    )
+    from design_from_url.consent import dismiss_consent as _dismiss_fn
+
+    session = BrowserSession(session_name=session_name or DEFAULT_SESSION)
+    try:
+        session.set_viewport(*VIEWPORT)
+        session.open_url(url, timeout_s=timeout_s)
+        if dismiss_consent:
+            _dismiss_fn(session)
+        info = RenderInfo(
+            final_url=session.get_url(),
+            page_title=session.get_title(),
+            html_size=len(session.eval_js(
+                "document.documentElement.outerHTML"
+            )),
+        )
+        session.set_color_scheme("light")
+        light = _extract_with_session(
+            session, info, screenshot_path=screenshot_path,
+        )
+        session.set_color_scheme("dark")
+        # No screenshot in dark pass — would overwrite the light reference.
+        dark = _extract_with_session(session, info)
+        return light, dark
+    finally:
+        session.close()

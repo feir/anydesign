@@ -14,4 +14,11 @@ DESIGN_MD_NPM_VERSION = "0.1.1"
 DESIGN_MD_NPM_PACKAGE = f"@google/design.md@{DESIGN_MD_NPM_VERSION}"
 
 # Generator string written into DESIGN.md metadata.
+# Updated to single-source canonical __version__ in 3a.7.
 GENERATOR = "design-from-url v0.1"
+
+# Minimum agent-browser version supporting `set media [dark|light]`.
+# Verified by 3a.1 probe; runtime check raises DarkModeUnsupported below
+# this threshold (env-dependent capability — committing a fixed True/False
+# constant would lie when users have older binaries).
+MIN_AGENT_BROWSER_VERSION = "0.26.0"

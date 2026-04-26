@@ -132,6 +132,21 @@ class BrowserSession:
         """
         self._run("screenshot", output_path, timeout_s=30)
 
+    def set_color_scheme(self, scheme: str) -> None:
+        """Toggle the page's effective color scheme (Phase 3a 3a.5b).
+
+        Wraps `agent-browser set media <scheme>` — the verified CLI shape
+        from 3a.1 probe (NOT `set color-scheme`, which doesn't exist).
+
+        State is sticky across subsequent `eval_js` calls in the same
+        session AND reversible. `scheme` must be 'light' or 'dark'.
+        """
+        if scheme not in ("light", "dark"):
+            raise ValueError(
+                f"scheme must be 'light' or 'dark', got {scheme!r}"
+            )
+        self._run("set", "media", scheme)
+
     def close(self) -> None:
         # Close just this session's tab/context, leaving any other sessions
         # (and any user-visible Chrome windows) untouched.
