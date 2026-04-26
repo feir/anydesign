@@ -16,6 +16,16 @@
   DESIGN.md with token-level diffs. Requires agent-browser >= 0.26.0;
   preflight + runtime probe gate execution and raise `DarkModeUnsupported`
   with an upgrade hint when capability is missing.
+  - **Known limitation**: the diff compares by positional token name
+    (`color_1`..`color_N`), which is reassigned per extraction by
+    frequency rank. Dark-aware sites (e.g. tailwindcss.com) produce
+    real signal at name `color_1` (e.g. `#010712` → `#ffffff` for body
+    background), but indices further down may show "shifts" where the
+    same hex slides across slot numbers. Phase 3b will align tokens
+    by representative value rather than positional index.
+  - Sites that don't respond to `prefers-color-scheme` (e.g. Stripe,
+    Linear's marketing surfaces) produce an empty diff and the section
+    is silently omitted with an stderr INFO log.
 - `<a>` button-styled traversal in the JS extractor — closes the
   Phase 2 AC #4 gap where Stripe/Linear hero CTAs (rendered as
   `<a class="cta">`) produced an empty `components.button-primary`.

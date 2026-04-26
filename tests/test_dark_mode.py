@@ -170,6 +170,18 @@ def test_diff_registries_handles_list_of_tokens():
     assert diff == {"primary": {"light": "#635bff", "dark": "#9d96ff"}}
 
 
+def test_diff_registries_handles_tuple_of_tokens():
+    """REGRESSION: real Registry.colors is `tuple` (frozen dataclass), not list.
+    Earlier _coerce_color_map only checked `isinstance(colors, list)` — silently
+    returned {} for real registries, making every E2E diff empty."""
+    light_tok = SimpleNamespace(name="primary", value="#635bff")
+    dark_tok = SimpleNamespace(name="primary", value="#9d96ff")
+    L = SimpleNamespace(colors=(light_tok,))    # tuple, not list
+    D = SimpleNamespace(colors=(dark_tok,))
+    diff = diff_registries(L, D)
+    assert diff == {"primary": {"light": "#635bff", "dark": "#9d96ff"}}
+
+
 # ----------------------------------------------------------------------
 # 4. build_dark_section — markdown output
 # ----------------------------------------------------------------------

@@ -131,7 +131,10 @@ def _coerce_color_map(registry: object) -> dict[str, str]:
         colors = getattr(registry, "colors", None)
     if isinstance(colors, dict):
         return {str(k): str(v) for k, v in colors.items()}
-    if isinstance(colors, list):
+    # Real Registry.colors is `tuple` (frozen dataclass), not list — accept both
+    # (and any other sequence). isinstance(colors, list) alone would silently
+    # return {} for the real type, masking diff failures behind synthetic tests.
+    if isinstance(colors, (list, tuple)):
         out: dict[str, str] = {}
         for c in colors:
             if hasattr(c, "name"):
