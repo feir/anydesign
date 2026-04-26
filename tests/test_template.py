@@ -150,6 +150,50 @@ def test_metadata_comment_omits_primary_override_when_unset():
     assert "primary_override" not in out
 
 
+# ---- Phase 2.0 — CLI --primary contract end-to-end ----
+
+def test_cli_primary_flows_to_yaml_colors_primary():
+    """When --primary "#FF0000" is passed, YAML frontmatter colors.primary
+    appears as lowercase quoted hex (registry canonical-hex normalization).
+    The original-case input is preserved in metadata.primary_override."""
+    from design_from_url.registry import build_registry
+    agg = {
+        "spacing": (), "rounded": (),
+        "colors": [
+            {"representative": "#000000", "frequency": 50, "members": ["#000000"]},
+            {"representative": "#ffffff", "frequency": 30, "members": ["#ffffff"]},
+        ],
+    }
+    reg = build_registry(agg, payload={}, primary_override="#FF0000")
+    out = build_design_md(reg, source_url="https://x.com",
+                          extracted_at="2026-04-26T00:00:00+00:00")
+    # YAML field — registry normalizes to lowercase canonical form
+    assert 'primary: "#ff0000"' in out
+    # Metadata HTML comment — preserves original input case for traceability
+    assert "primary_override: #FF0000" in out
+
+
+def test_cli_primary_distinct_from_yaml_metadata_field():
+    """The metadata.primary_override is NOT in YAML frontmatter (spec rejects it),
+    only in the HTML comment block in body — Phase 1.9 spec finding."""
+    from design_from_url.registry import build_registry
+    agg = {
+        "spacing": (), "rounded": (),
+        "colors": [
+            {"representative": "#000000", "frequency": 50, "members": ["#000000"]},
+            {"representative": "#ffffff", "frequency": 30, "members": ["#ffffff"]},
+        ],
+    }
+    reg = build_registry(agg, payload={}, primary_override="#abc123")
+    out = build_design_md(reg, source_url="https://x.com")
+    # Split YAML vs body
+    yaml_block, _, body = out.partition("\n---\n")  # first --- is open, second is close
+    assert "primary_override" not in yaml_block, (
+        "primary_override leaked into YAML frontmatter — spec rejects this field"
+    )
+    assert "primary_override: #abc123" in body
+
+
 def test_build_design_md_full_output_has_yaml_frontmatter_and_placeholders():
     reg = _registry()
     out = build_design_md(reg, source_url="https://stripe.com",

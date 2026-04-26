@@ -16,3 +16,6 @@ spike/screenshots/
 
 # OS
 .DS_Store
+
+# Plan-reviewer agent workspace (acpx Codex needs copies outside ~/.claude/)
+review-tmp/

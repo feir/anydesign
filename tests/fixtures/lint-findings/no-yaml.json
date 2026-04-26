@@ -1,0 +1,5 @@
+{
+  "stdout": "{\n  \"findings\": [\n    {\n      \"severity\": \"warning\",\n      \"message\": \"No YAML content found. Expected frontmatter (---) or fenced yaml code blocks.\"\n    }\n  ],\n  \"summary\": {\n    \"errors\": 0,\n    \"warnings\": 1,\n    \"infos\": 0\n  }\n}\n",
+  "stderr": "",
+  "exit_code": 0
+}

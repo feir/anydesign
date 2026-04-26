@@ -106,6 +106,21 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Skip Phase 1.5b auto brand-color detection (saves a screenshot capture).",
     )
+    p_build.add_argument(
+        "--with-llm",
+        action="store_true",
+        help=(
+            "Phase 2: enable LLM-driven prose generation + self-lint loop. "
+            "Requires local oMLX (gemma4:26b) — vision call cannot fall back "
+            "to cloud (cloud has no vision input). On unavailability, exits 2 "
+            "with degraded_reason=omx_failover."
+        ),
+    )
+    p_build.add_argument(
+        "--llm-model",
+        default="local/gemma4:26b",
+        help="LLM model identifier (must be local/...). Default: local/gemma4:26b.",
+    )
     p_build.set_defaults(func=_cmd_build)
 
     return parser
@@ -207,7 +222,8 @@ def _cmd_build(args: argparse.Namespace) -> int:
     from design_from_url.brand_color import detect_brand_color
 
     primary = args.primary
-    needs_screenshot = primary is None and not args.no_auto_primary
+    # Screenshot needed for: brand auto-detection (Phase 1.5b) OR --with-llm vision call
+    needs_screenshot = (primary is None and not args.no_auto_primary) or args.with_llm
     screenshot_path: str | None = None
     cleanup_screenshot = False
     if needs_screenshot:
@@ -276,7 +292,239 @@ def _cmd_build(args: argparse.Namespace) -> int:
             print(f"wrote {args.out}", file=sys.stderr)
         else:
             sys.stdout.write(md)
+
+        # Phase 2.5: self-lint loop (only when --with-llm and --out set)
+        if args.with_llm:
+            if not args.out:
+                print(
+                    "FATAL: --with-llm requires --out (loop needs a writable target file)",
+                    file=sys.stderr,
+                )
+                return 4
+            if not screenshot_path or not os.path.exists(screenshot_path):
+                print(
+                    "FATAL: --with-llm requires a viewport screenshot; "
+                    "set --primary or remove --no-auto-primary",
+                    file=sys.stderr,
+                )
+                return 4
+            return _run_self_lint_loop(
+                out_path=args.out,
+                screenshot_path=screenshot_path,
+                registry=registry,
+                payload=payload,
+                args=args,
+                source_url=payload.get("url") or args.url,
+            )
         return 0
     finally:
         if cleanup_screenshot and screenshot_path and os.path.exists(screenshot_path):
             os.unlink(screenshot_path)
+
+
+def _patch_design_md(
+    out_path: str, overview_text: str, dos_text: str, component_yaml: str,
+) -> None:
+    """Replace LLM placeholders + inject component YAML into DESIGN.md.
+
+    Operations (all idempotent):
+    - Overview placeholder → overview_text (or skip if placeholder absent)
+    - Do's & Don'ts placeholder → dos_text
+    - Remaining placeholders (colors_prose / typography_prose / layout_prose /
+      components_prose) → empty (deleted) — Phase 2 doesn't yet generate these
+    - components_yaml → injected under YAML frontmatter `components:` key
+      (creates the key if missing)
+    """
+    with open(out_path, encoding="utf-8") as f:
+        text = f.read()
+
+    # Placeholder substitutions
+    text = text.replace(
+        "<!-- LLM_PLACEHOLDER:overview -->", overview_text.strip(),
+    )
+    text = text.replace(
+        "<!-- LLM_PLACEHOLDER:dos_donts -->", dos_text.strip(),
+    )
+    # Drop unfilled placeholders (sections kept as headers but body empty)
+    for stub in (
+        "<!-- LLM_PLACEHOLDER:colors_prose -->",
+        "<!-- LLM_PLACEHOLDER:typography_prose -->",
+        "<!-- LLM_PLACEHOLDER:layout_prose -->",
+        "<!-- LLM_PLACEHOLDER:components_prose -->",
+    ):
+        text = text.replace(stub, "_(prose generation deferred to Phase 2.x)_")
+
+    # Inject component YAML into frontmatter (if any)
+    if component_yaml.strip():
+        # Find frontmatter close `\n---\n` and inject before it.
+        # YAML expects nested under `components:` key; we add the key if absent.
+        from design_from_url.schema_fixer import split_frontmatter, join_frontmatter
+        try:
+            yaml_text, body = split_frontmatter(text)
+        except ValueError:
+            yaml_text, body = "", text
+        if "components:" not in yaml_text:
+            # Indent the LLM output and append under a new components: key
+            indented = "\n".join("  " + line for line in component_yaml.strip().splitlines())
+            yaml_text = yaml_text.rstrip("\n") + "\ncomponents:\n" + indented
+        else:
+            # Append under existing components: key (LLM output already has button-primary as its key)
+            indented = "\n".join("  " + line for line in component_yaml.strip().splitlines())
+            yaml_text = yaml_text.rstrip("\n") + "\n" + indented
+        text = join_frontmatter(yaml_text, body)
+
+    with open(out_path, "w", encoding="utf-8") as f:
+        f.write(text)
+
+
+def _run_self_lint_loop(
+    *, out_path: str, screenshot_path: str, registry, payload: dict,
+    args, source_url: str,
+) -> int:
+    """Phase 2.5 — orchestrate prose generation + self-lint convergence.
+
+    Returns the exit code per design.md D6.1 enum mapping.
+    """
+    import datetime
+    import os as _os
+    from design_from_url import llm, component
+    from design_from_url.prompt_loader import load_prompt
+    from design_from_url.preflight import classify, lint_design_md_structured
+    from design_from_url.run_report import RunReport
+    from design_from_url.schema_fixer import (
+        Pass2Unresolvable, apply_to_file,
+    )
+    from design_from_url.prose_retry import (
+        build_retry_prompt, replace_overview_section,
+    )
+
+    # Build registry YAML block for prompts (cap at 12 colors per Phase 1.7.1)
+    registry_lines = ["colors:"]
+    for tok in registry.colors[:12]:
+        registry_lines.append(f'  {tok.name}: "{tok.value}"')
+    registry_yaml = "\n".join(registry_lines)
+
+    report = RunReport(
+        url=source_url,
+        extracted_at=datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        registry_size={
+            "colors": len(registry.colors),
+            "typography": len(registry.typography),
+            "spacing": len(registry.spacing),
+            "rounded": len(registry.rounded),
+        },
+        llm_model=args.llm_model,
+    )
+
+    # Stage 1 — Generate Overview prose
+    try:
+        overview_text = llm.generate(
+            load_prompt("overview", registry=registry_yaml),
+            image_path=screenshot_path,
+            model=args.llm_model,
+        )
+    except llm.LLMUnavailable as exc:
+        print(f"DEGRADED MODE: cloud has no image — abort. {exc}", file=sys.stderr)
+        report.update_status("omx_failover")
+        report.write(out_path + ".run_report.json")
+        # Preserve partial DESIGN.md alongside (already written above)
+        return report.exit_code
+
+    # Stage 2 — Generate Do's & Don'ts prose
+    try:
+        dos_text = llm.generate(
+            load_prompt("dos_donts", registry=registry_yaml,
+                        role_mapping="(role mapping inferred from registry token names)"),
+            image_path=screenshot_path,
+            model=args.llm_model,
+        )
+    except llm.LLMUnavailable as exc:
+        print(f"DEGRADED MODE during dos_donts: {exc}", file=sys.stderr)
+        report.update_status("omx_failover")
+        report.write(out_path + ".run_report.json")
+        return report.exit_code
+
+    # Stage 3 — Component identification (button-primary)
+    candidates = component.select_top_candidates(payload)
+    component_yaml = ""
+    if candidates:
+        crops_dir = _os.path.dirname(out_path) or "."
+        crop_paths = component.crop_buttons_from_viewport(
+            screenshot_path, candidates, crops_dir=crops_dir, pad=4,
+        )
+        if crop_paths:
+            try:
+                component_yaml = component.pick_button_primary(
+                    candidates, crop_paths, registry_yaml,
+                    llm_generate=llm.generate, model=args.llm_model,
+                )
+            except llm.LLMUnavailable as exc:
+                print(f"DEGRADED MODE during component pick: {exc}", file=sys.stderr)
+                report.update_status("omx_failover")
+                report.write(out_path + ".run_report.json")
+                return report.exit_code
+
+    # Patch all sections into DESIGN.md
+    _patch_design_md(out_path, overview_text, dos_text, component_yaml)
+
+    # Stage 2 — Self-lint loop (initial + 2 retries)
+    for round_idx in range(3):
+        lint_result = lint_design_md_structured(out_path)
+        report.findings_total = len(lint_result.findings)
+        if lint_result.errors == 0:
+            break  # PASS
+        schema_findings, prose_findings = classify(lint_result.findings)
+        report.schema_findings = len(schema_findings)
+        report.prose_findings = len(prose_findings)
+
+        # Pass 1+2 schema fix
+        try:
+            p1, p2 = apply_to_file(out_path, schema_findings, registry)
+        except Pass2Unresolvable as exc:
+            print(f"FATAL: required field unresolvable: {exc}", file=sys.stderr)
+            report.update_status("required_field_unresolvable")
+            report.write(out_path + ".run_report.json")
+            return report.exit_code
+        # Record actions
+        from design_from_url.run_report import FixerAction
+        for a in p1:
+            report.fixer_actions.append(FixerAction(rule=a.rule, action=a.action, target=a.target))
+        for a in p2:
+            report.fixer_actions.append(FixerAction(rule=a.rule, action=a.action, target=a.target))
+
+        # Prose retry (skip on last round to avoid pointless work)
+        if prose_findings and round_idx < 2:
+            try:
+                with open(out_path, encoding="utf-8") as f:
+                    prev = f.read()
+                retry_prompt = build_retry_prompt(
+                    load_prompt("overview", registry=registry_yaml),
+                    prev, prose_findings,
+                )
+                new_overview = llm.generate(
+                    retry_prompt, image_path=screenshot_path, model=args.llm_model,
+                )
+                with open(out_path, encoding="utf-8") as f:
+                    text = f.read()
+                text = replace_overview_section(text, new_overview)
+                with open(out_path, "w", encoding="utf-8") as f:
+                    f.write(text)
+            except llm.LLMUnavailable as exc:
+                print(f"DEGRADED MODE during prose retry: {exc}", file=sys.stderr)
+                report.update_status("omx_failover")
+                report.write(out_path + ".run_report.json")
+                return report.exit_code
+
+        report.retry_rounds = round_idx + 1
+
+    # Final lint check
+    final = lint_design_md_structured(out_path)
+    if final.errors == 0:
+        report.update_status(None)
+    else:
+        # Loop exhausted with errors remaining → DEGRADED
+        report.update_status("prose_retry_exhausted")
+    report.write(out_path + ".run_report.json")
+    print(f"final_status={report.final_status} errors={final.errors} retries={report.retry_rounds}",
+          file=sys.stderr)
+    return report.exit_code

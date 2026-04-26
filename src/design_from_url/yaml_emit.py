@@ -63,8 +63,16 @@ def _is_multiline(s: str) -> bool:
 
 
 def _emit_multiline(s: str, indent: int) -> list[str]:
+    """Emit a multiline string as a YAML block scalar.
+
+    Uses `|-` (strip indicator) instead of `|` (clip) so PyYAML round-trips
+    the string exactly as input — `|` clip preserves a final newline,
+    causing `"a\\nb"` to round-trip as `"a\\nb\\n"`. The strip variant is
+    semantically equivalent for our use case (notes/comments that don't
+    care about trailing newlines).
+    """
     pad = " " * indent
-    lines = ["|"]
+    lines = ["|-"]
     for line in s.splitlines():
         lines.append(f"{pad}{line}")
     return lines
@@ -94,7 +102,9 @@ def _emit_mapping(d: dict, out: list[str], *, level: int, indent_step: int) -> N
                 out.append(f"{pad}{key}:")
                 _emit_list(v, out, level=level + 1, indent_step=indent_step)
         elif _is_multiline(v):
-            out.append(f"{pad}{key}: |")
+            # Use `|-` (strip) instead of `|` (clip) so PyYAML round-trips
+            # `"a\nb"` as `"a\nb"` not `"a\nb\n"`.
+            out.append(f"{pad}{key}: |-")
             _emit_multiline_lines(v, out, level=level + 1, indent_step=indent_step)
         else:
             out.append(f"{pad}{key}: {_emit_scalar(v)}")

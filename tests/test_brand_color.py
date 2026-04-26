@@ -27,7 +27,7 @@ from design_from_url.brand_color import (  # noqa: E402
 )
 
 SPIKE_SCREENSHOTS = Path(
-    "/Users/feir/.claude/.specs/changes/design-md-from-url/spike/screenshots"
+    "/Users/feir/.claude/.specs/archive/2026-04-26-design-md-from-url/spike/screenshots"
 )
 GROUND_TRUTH = {
     "stripe": "#635bff",

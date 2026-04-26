@@ -1,0 +1,5 @@
+{
+  "stdout": "{\n  \"findings\": [\n    {\n      \"severity\": \"error\",\n      \"path\": \"components.button-primary\",\n      \"message\": \"Reference {colors.nonexistent} does not resolve to any defined token.\"\n    },\n    {\n      \"severity\": \"warning\",\n      \"path\": \"colors.primary\",\n      \"message\": \"'primary' is defined but never referenced by any component.\"\n    },\n    {\n      \"severity\": \"warning\",\n      \"path\": \"colors.neutral_dark\",\n      \"message\": \"'neutral_dark' is defined but never referenced by any component.\"\n    },\n    {\n      \"severity\": \"warning\",\n      \"path\": \"colors.neutral_light\",\n      \"message\": \"'neutral_light' is defined but never referenced by any component.\"\n    },\n    {\n      \"severity\": \"info\",\n      \"message\": \"Design system defines 3 colors, 1 typography scale, 1 rounding level, 2 spacing tokens, 1 component.\"\n    }\n  ],\n  \"summary\": {\n    \"errors\": 1,\n    \"warnings\": 3,\n    \"infos\": 1\n  }\n}\n",
+  "stderr": "",
+  "exit_code": 1
+}

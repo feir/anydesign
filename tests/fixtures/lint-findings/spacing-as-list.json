@@ -1,0 +1,5 @@
+{
+  "stdout": "{\n  \"findings\": [\n    {\n      \"severity\": \"error\",\n      \"message\": \"Unexpected error during model building: raw.match is not a function\"\n    }\n  ],\n  \"summary\": {\n    \"errors\": 1,\n    \"warnings\": 0,\n    \"infos\": 0\n  }\n}\n",
+  "stderr": "",
+  "exit_code": 1
+}

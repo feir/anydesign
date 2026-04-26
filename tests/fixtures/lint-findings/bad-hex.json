@@ -1,0 +1,5 @@
+{
+  "stdout": "{\n  \"findings\": [\n    {\n      \"severity\": \"error\",\n      \"path\": \"colors.primary\",\n      \"message\": \"'#xyz' is not a valid color. Expected a hex color code (e.g., #ffffff).\"\n    },\n    {\n      \"severity\": \"warning\",\n      \"path\": \"colors\",\n      \"message\": \"No 'primary' color defined. The agent will auto-generate key colors, reducing your control over the palette.\"\n    },\n    {\n      \"severity\": \"warning\",\n      \"path\": \"colors.neutral_dark\",\n      \"message\": \"'neutral_dark' is defined but never referenced by any component.\"\n    },\n    {\n      \"severity\": \"warning\",\n      \"path\": \"colors.neutral_light\",\n      \"message\": \"'neutral_light' is defined but never referenced by any component.\"\n    },\n    {\n      \"severity\": \"info\",\n      \"message\": \"Design system defines 2 colors, 1 typography scale, 1 rounding level, 2 spacing tokens, 1 component.\"\n    }\n  ],\n  \"summary\": {\n    \"errors\": 1,\n    \"warnings\": 3,\n    \"infos\": 1\n  }\n}\n",
+  "stderr": "",
+  "exit_code": 1
+}
