@@ -163,21 +163,22 @@ def _build_extraction_js(
         lab: 7,
     };
     const buttons = [];
+    const classifyParsed = (parsed) => {
+        if (!parsed) return 'parse-failed';
+        const thr = CHROMA_THRESHOLDS[parsed.space] ?? 0.04;
+        // alpha < 0.1 captures hover overlays and ghost states which
+        // never represent the real CTA brand color even when their
+        // underlying chroma is high.
+        if (parsed.a < 0.1) return 'transparent';
+        if (parsed.chroma < thr) return 'neutral';
+        return 'colored';
+    };
     document.querySelectorAll('button').forEach((btn) => {
         const cs = getComputedStyle(btn);
         const bg = cs.getPropertyValue('background-color').trim();
         const rect = btn.getBoundingClientRect();
         const parsed = parseColor(bg);
-        let classification = 'parse-failed';
-        if (parsed) {
-            // alpha < 0.1 captures hover overlays and ghost states which
-            // never represent the real CTA brand color even when their
-            // underlying chroma is high.
-            const thr = CHROMA_THRESHOLDS[parsed.space] ?? 0.04;
-            if (parsed.a < 0.1) classification = 'transparent';
-            else if (parsed.chroma < thr) classification = 'neutral';
-            else classification = 'colored';
-        }
+        const classification = classifyParsed(parsed);
         buttons.push({
             background_color: bg,
             color: parsed,
@@ -188,8 +189,70 @@ def _build_extraction_js(
                 visible: rect.width > 0 && rect.height > 0,
             },
             text: (btn.textContent || '').trim().slice(0, 80),
+            source: 'button',
         });
     });
+
+    // ---- 3b. <a> button-styled traversal (D1 AC #4 closeout) ----
+    // Stripe / Linear hero CTAs use <a class="cta">, never <button>. Filter
+    // narrows to "anchors that look like buttons" without polluting with
+    // ordinary text links. Wrapped in try/catch so a heuristic failure here
+    // cannot kill the main <button> path which already populated above.
+    try {
+        const inNav = (el) => {
+            // <header> intentionally NOT excluded — Stripe / Linear hero
+            // CTAs live inside <header>; only true site nav must be skipped.
+            let cur = el.parentElement;
+            while (cur) {
+                if (cur.tagName === 'NAV') return true;
+                cur = cur.parentElement;
+            }
+            return false;
+        };
+        document.querySelectorAll('a').forEach((a) => {
+            const rect = a.getBoundingClientRect();
+            const area = Math.max(0, rect.width * rect.height);
+            // 4-clause filter — all must hold:
+            //   (1) area >= 3000  (rules out small text links)
+            //   (2) NOT under <nav>  (excludes site-nav links)
+            //   (3) padding max >= 8  (real button padding)
+            //   (4) role="button" OR chroma >= threshold
+            //       (catches role-typed CTAs even if neutral-colored)
+            if (area < 3000) return;
+            if (inNav(a)) return;
+            const cs = getComputedStyle(a);
+            // Use 4 longhand padding sides — CSSOM spec says shorthand
+            // `padding` returns "" from getPropertyValue when set via
+            // individual longhand properties.
+            const padMax = Math.max(
+                parseFloat(cs.getPropertyValue('padding-top')) || 0,
+                parseFloat(cs.getPropertyValue('padding-right')) || 0,
+                parseFloat(cs.getPropertyValue('padding-bottom')) || 0,
+                parseFloat(cs.getPropertyValue('padding-left')) || 0,
+            );
+            if (padMax < 8) return;
+            const bg = cs.getPropertyValue('background-color').trim();
+            const parsed = parseColor(bg);
+            const isRoleButton = a.getAttribute('role') === 'button';
+            const thr = parsed ? (CHROMA_THRESHOLDS[parsed.space] ?? 0.04) : 0.04;
+            const chromaOK = parsed && parsed.chroma >= thr && parsed.a >= 0.1;
+            if (!isRoleButton && !chromaOK) return;
+            buttons.push({
+                background_color: bg,
+                color: parsed,
+                classification: classifyParsed(parsed),
+                area,
+                rect: {
+                    x: rect.x, y: rect.y, width: rect.width, height: rect.height,
+                    visible: rect.width > 0 && rect.height > 0,
+                },
+                text: (a.textContent || '').trim().slice(0, 80),
+                source: 'a-styled',
+            });
+        });
+    } catch (_) {
+        // Heuristic failure must not kill the primary <button> path.
+    }
     buttons.sort((a, b) => {
         const aw = a.classification === 'colored' ? 1 : 0;
         const bw = b.classification === 'colored' ? 1 : 0;
