@@ -5,9 +5,11 @@
 ### Breaking
 
 - HARD_FAIL exit code changed from `2` to `1` (DEGRADED stays at `2`).
-  Affected `degraded_reason` values: `omx_failover`, `required_field_unresolvable`.
-  Shell scripts that branch on `design-from-url` exit code must update
-  their HARD_FAIL test from `[ $? -eq 2 ]` to `[ $? -eq 1 ]`.
+  All HARD_FAIL paths now exit `1` — pre-existing `omx_failover` /
+  `required_field_unresolvable` (was `2` in Phase 2), plus the new
+  HARD_FAIL reasons added in this release (see Added). Shell scripts
+  that branch on `design-from-url` exit code must update their
+  HARD_FAIL test from `[ $? -eq 2 ]` to `[ $? -eq 1 ]`.
 
 ### Added
 
