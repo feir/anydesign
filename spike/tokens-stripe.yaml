@@ -1,0 +1,56 @@
+name: Stripe
+description: Stripe design tokens (auto-extracted).
+colors:
+  primary: "#635bff"
+  color_1: "#533afd"
+  color_2: "#061b31"
+  color_3: "#ffffff"
+  color_4: "#d4dee9"
+  color_5: "#2e2b8c"
+  color_6: "#e8e9ff"
+  color_7: "#4032c8"
+  color_8: "#273951"
+  color_9: "#95a4ba"
+  color_10: "#b9b9f9"
+  color_11: "#d6d9fc"
+typography:
+  h1:
+    fontFamily: "sohne-var, \"SF Pro Display\", sans-serif"
+    fontSize: 48px
+    fontWeight: "300"
+    lineHeight: 55.2px
+    letterSpacing: -0.96px
+  h2:
+    fontFamily: "sohne-var, \"SF Pro Display\", sans-serif"
+    fontSize: 32px
+    fontWeight: "300"
+    lineHeight: 35.2px
+    letterSpacing: -0.64px
+  h3:
+    fontFamily: "sohne-var, \"SF Pro Display\", sans-serif"
+    fontSize: 26px
+    fontWeight: "300"
+    lineHeight: 29.12px
+    letterSpacing: -0.26px
+  body:
+    fontFamily: "sohne-var, \"SF Pro Display\", sans-serif"
+    fontSize: 16px
+    fontWeight: "400"
+  button:
+    fontFamily: "sohne-var, \"SF Pro Display\", sans-serif"
+    fontSize: 14px
+    fontWeight: "400"
+    lineHeight: 14px
+  a:
+    fontFamily: "sohne-var, \"SF Pro Display\", sans-serif"
+    fontSize: 16px
+    fontWeight: "400"
+rounded:
+  sm: 4px
+  md: 6px
+spacing:
+  xs: 6px
+  sm: 11px
+  md: 16px
+  lg: 32px
+  xl: 64px

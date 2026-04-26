@@ -1,0 +1,50 @@
+{
+  "phase_criteria_version": "phase-2.1.0",
+  "captured_at": "2026-04-26",
+  "framework": "Phase 2 architecture (renderer pivot + schema fixer + monochrome fallback)",
+  "sites": {
+    "stripe": {
+      "url": "https://stripe.com/",
+      "extracted_at": "2026-04-26T03:50:04+00:00",
+      "registry_size": {
+        "colors": 12,
+        "typography_keys": 6,
+        "spacing": 5,
+        "rounded": 2
+      },
+      "primary_override": "#635bff",
+      "has_button_primary_component": false,
+      "phase_2_prose_stubs_remaining": 6,
+      "phase_2_status": "DEGRADED (prose placeholders unresolved)"
+    },
+    "vercel": {
+      "url": "https://vercel.com/",
+      "extracted_at": "2026-04-26T03:51:05+00:00",
+      "registry_size": {
+        "colors": 12,
+        "typography_keys": 7,
+        "spacing": 5,
+        "rounded": 5
+      },
+      "primary_override": "#000000",
+      "has_button_primary_component": false,
+      "phase_2_prose_stubs_remaining": 6,
+      "phase_2_status": "DEGRADED (prose placeholders unresolved)"
+    },
+    "tailwind": {
+      "url": "https://tailwindcss.com/",
+      "extracted_at": "2026-04-26T03:51:21+00:00",
+      "registry_size": {
+        "colors": 12,
+        "typography_keys": 7,
+        "spacing": 5,
+        "rounded": 5
+      },
+      "primary_override": "#06b6d4",
+      "has_button_primary_component": false,
+      "phase_2_prose_stubs_remaining": 6,
+      "phase_2_status": "DEGRADED (prose placeholders unresolved)"
+    }
+  },
+  "notes": "Generated 2026-04-26 from out-{stripe,vercel,tailwind}.md frontmatter. phase_2_status=DEGRADED reflects the Phase 2 ship state where 4 prose sections remained as LLM_PLACEHOLDER stubs (closed by Phase 3a 3a.4). Registry sizes are post-Phase-1.7.1 cap_colors=12 default."
+}

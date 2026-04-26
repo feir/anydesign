@@ -1,0 +1,65 @@
+name: Tailwindcss
+description: Tailwindcss design tokens (auto-extracted).
+colors:
+  primary: "#06b6d4"
+  color_1: "#010712"
+  color_2: "#fafafa"
+  color_3: "#e5e7eb"
+  color_4: "#0c0a09"
+  color_5: "#d0d5dc"
+  color_6: "#ebfeff"
+  color_7: "#fcf4ff"
+  color_8: "#f9e8ff"
+  color_9: "#fffbeb"
+  color_10: "#161b1d"
+  color_11: "#1e1d16"
+typography:
+  h1:
+    fontFamily: "inter, \"inter Fallback\", system-ui"
+    fontSize: 96px
+    fontWeight: "400"
+    lineHeight: 96px
+    letterSpacing: -4.8px
+  h2:
+    fontFamily: "inter, \"inter Fallback\", system-ui"
+    fontSize: 40px
+    fontWeight: "500"
+    lineHeight: 40px
+    letterSpacing: -2px
+  h3:
+    fontFamily: "inter, \"inter Fallback\", system-ui"
+    fontSize: 16px
+    fontWeight: "600"
+    lineHeight: 24px
+  body:
+    fontFamily: "inter, \"inter Fallback\", system-ui"
+    fontSize: 16px
+    fontWeight: "400"
+    lineHeight: 24px
+  button:
+    fontFamily: "inter, \"inter Fallback\", system-ui"
+    fontSize: 12px
+    fontWeight: "500"
+    lineHeight: 20px
+  a:
+    fontFamily: "inter, \"inter Fallback\", system-ui"
+    fontSize: 16px
+    fontWeight: "400"
+    lineHeight: 24px
+  input:
+    fontFamily: "inter, \"inter Fallback\", system-ui"
+    fontSize: 16px
+    fontWeight: "400"
+    lineHeight: 24px
+rounded:
+  xs: 4px
+  sm: 7px
+  md: 8px
+  lg: 12px
+  xl: 16px
+spacing:
+  xs: 4px
+  sm: 8px
+  md: 12px
+  lg: 16px
+  xl: 32px
