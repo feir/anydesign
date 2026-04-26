@@ -63,6 +63,20 @@
   (`padding-top`, `padding-right`, `padding-bottom`, `padding-left`)
   instead of the shorthand `padding` — CSSOM spec returns "" for
   shorthand when set via individual properties.
+- `BrowserSession.screenshot()` now accepts `timeout_s` keyword and
+  plumbs it through `_extract_with_session` / `extract_from_url` /
+  `extract_dual_mode` — previously hardcoded at 30s, silently ignoring
+  CLI `--timeout`. Heavy sites (Stripe) now honor the user-supplied
+  timeout for the screenshot RPC step.
+
+### Verified
+
+- AC #6 real `--with-llm` 3-site E2E PASS confirmed on 2026-04-26:
+  Stripe, Linear, Vercel — all `final_status=PASS`, `exit_code=0`,
+  `schema_findings=0`, `prose_findings=0`, `retry_rounds=0`. Spec lint
+  via `design.md lint`: errors=0 on all three (warnings=11 each are
+  expected auto-extraction artifact: extracted colors not referenced
+  by the single LLM-identified component).
 
 ### Dependencies
 

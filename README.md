@@ -11,10 +11,12 @@ Extract design tokens from a URL and emit a `DESIGN.md` file conformant to the
 
 ## Status
 
-Phase 1 (token extraction MVP) — under active development.
-Phase 0 spike PASSED on 5 reference sites (Stripe, Linear, Vercel, Tailwind,
-Notion); see `.specs/changes/design-md-from-url/spike/decision.md` in the
-parent dotclaude repo.
+Phase 3a complete (v0.3.0a0, 2026-04-26). AC#6 (`--with-llm` 3-site E2E)
+confirmed PASS on Stripe, Linear, Vercel — all sites produce
+spec-compliant `DESIGN.md` (`design.md lint` errors=0). Phase 0 spike
+PASSED on 5 reference sites (Stripe, Linear, Vercel, Tailwind, Notion);
+see `.specs/changes/design-md-from-url/spike/decision.md` in the parent
+dotclaude repo.
 
 ## Quick start
 
@@ -56,6 +58,7 @@ for the full architectural spec.
 | Phase | Scope | Status |
 |-------|-------|--------|
 | 0 | Vision-LLM quality spike (5 sites, binary go/no-go gate) | PASS (89%) |
-| 1 | Token extraction + Schema Fixer skeleton | in progress |
-| 2 | Vision LLM prose + component identification + self-lint loop | pending |
-| 3 | agent-browser fallback + 10-site robustness + dark mode | pending |
+| 1 | Token extraction + Schema Fixer skeleton | PASS |
+| 2 | Vision LLM prose + component identification + self-lint loop | PASS |
+| 3a | Exit codes + dark mode + `<a>` traversal + prose 4 sections | PASS (3-site E2E confirmed) |
+| 3b | LLM provider switching + 10-site sweep + value-based dark diff | pending |
