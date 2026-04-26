@@ -223,8 +223,8 @@ def test_preflight_raises_when_probe_returns_false():
     with patch("design_from_url.dark_mode.shutil.which", return_value="/fake/ab"):
         fake_proc = MagicMock(returncode=0, stdout="agent-browser 0.26.0\n", stderr="")
         with patch("design_from_url.dark_mode.subprocess.run", return_value=fake_proc):
-            # Bypass lru_cache so test can re-stub
-            dark_mode._probe_dark_mode_support.cache_clear()
+            # Reset success-only cache so test can re-stub
+            dark_mode._PROBE_RESULT_CACHE = None
             with patch("design_from_url.dark_mode._probe_dark_mode_support", return_value=False):
                 with pytest.raises(DarkModeUnsupported, match="probe failed at runtime"):
                     preflight()

@@ -15,9 +15,9 @@ layer translates to a clear stderr message + exit code.
 
 from __future__ import annotations
 
+import os
 import shutil
 import subprocess
-from functools import lru_cache
 
 from packaging.version import InvalidVersion, Version
 
@@ -84,16 +84,26 @@ _PROBE_HTML = (
 )
 
 
-@lru_cache(maxsize=1)
+# Memoize successes only. A transient probe failure (e.g. concurrent agent-browser
+# session collision) must not poison subsequent calls in the same process.
+_PROBE_RESULT_CACHE: bool | None = None
+
+
 def _probe_dark_mode_support() -> bool:
-    """Verify `set media` actually flips colors. Cached per-process.
+    """Verify `set media` actually flips colors. Cached on success only.
 
     Fail-closed: any error returns False (we'd rather refuse the dark
-    run than silently produce a wrong result).
+    run than silently produce a wrong result). Session name is PID-scoped
+    so concurrent invocations on the same host don't collide.
     """
+    global _PROBE_RESULT_CACHE
+    if _PROBE_RESULT_CACHE is True:
+        return True
+
     from design_from_url.renderer import BrowserSession
+    session_name = f"design-from-url-darkprobe-{os.getpid()}"
     try:
-        session = BrowserSession(session_name="design-from-url-darkprobe")
+        session = BrowserSession(session_name=session_name)
     except Exception:
         return False
     try:
@@ -113,7 +123,10 @@ def _probe_dark_mode_support() -> bool:
         return False
     ls = str(light or "").strip()
     ds = str(dark or "").strip()
-    return bool(ls and ds and ls != ds)
+    result = bool(ls and ds and ls != ds)
+    if result:
+        _PROBE_RESULT_CACHE = True
+    return result
 
 
 def _coerce_color_map(registry: object) -> dict[str, str]:
