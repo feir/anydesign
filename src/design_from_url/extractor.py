@@ -341,6 +341,7 @@ def _extract_with_session(
     info: Any,
     *,
     screenshot_path: str | None = None,
+    screenshot_timeout_s: int = 30,
 ) -> dict[str, Any]:
     """Run the JS extraction pass against an already-opened session.
 
@@ -352,7 +353,7 @@ def _extract_with_session(
     js = _build_extraction_js(DEFAULT_COMPUTED_SELECTORS, _SAMPLES_PER_SELECTOR)
     raw = session.eval_js(js)
     if screenshot_path:
-        session.screenshot(screenshot_path)
+        session.screenshot(screenshot_path, timeout_s=screenshot_timeout_s)
     raw["url"] = info.final_url
     raw["page_title"] = info.page_title
     raw["html_size"] = info.html_size
@@ -384,7 +385,9 @@ def extract_from_url(
         dismiss_consent_banners=dismiss_consent,
     ) as (session, info):
         return _extract_with_session(
-            session, info, screenshot_path=screenshot_path,
+            session, info,
+            screenshot_path=screenshot_path,
+            screenshot_timeout_s=timeout_s,
         )
 
 
@@ -426,7 +429,9 @@ def extract_dual_mode(
         )
         session.set_color_scheme("light")
         light = _extract_with_session(
-            session, info, screenshot_path=screenshot_path,
+            session, info,
+            screenshot_path=screenshot_path,
+            screenshot_timeout_s=timeout_s,
         )
         session.set_color_scheme("dark")
         # No screenshot in dark pass — would overwrite the light reference.

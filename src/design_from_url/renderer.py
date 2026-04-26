@@ -124,13 +124,13 @@ class BrowserSession:
         out = self._run("get", "title")
         return str(out).strip()
 
-    def screenshot(self, output_path: str) -> None:
+    def screenshot(self, output_path: str, *, timeout_s: int = 30) -> None:
         """Capture viewport screenshot to `output_path` (PNG).
 
         Wraps `agent-browser screenshot <path>`. agent-browser auto-creates
         the parent directory for the path if it doesn't exist.
         """
-        self._run("screenshot", output_path, timeout_s=30)
+        self._run("screenshot", output_path, timeout_s=timeout_s)
 
     def set_color_scheme(self, scheme: str) -> None:
         """Toggle the page's effective color scheme (Phase 3a 3a.5b).

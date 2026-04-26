@@ -134,6 +134,32 @@ def test_extract_dual_mode_close_called_on_exception():
     fake_session.close.assert_called_once()
 
 
+def test_extract_dual_mode_propagates_timeout_to_screenshot(tmp_path):
+    """timeout_s flows from caller → open_url + screenshot, not just open_url.
+
+    Regression guard for the Phase 3a hardcoded-30s screenshot bug. Heavy
+    sites (Stripe) need the same long timeout for screenshot as for navigate.
+    """
+    fake_session = _build_fake_session()
+    target = str(tmp_path / "viewport.png")
+
+    with patch(
+        "design_from_url.renderer.BrowserSession", return_value=fake_session,
+    ):
+        with patch("design_from_url.consent.dismiss_consent"):
+            from design_from_url.extractor import extract_dual_mode
+            extract_dual_mode(
+                "https://example.com",
+                timeout_s=90,
+                screenshot_path=target,
+            )
+
+    fake_session.open_url.assert_called_once_with(
+        "https://example.com", timeout_s=90,
+    )
+    fake_session.screenshot.assert_called_once_with(target, timeout_s=90)
+
+
 # ----------------------------------------------------------------------
 # 3. diff_registries — semantic correctness
 # ----------------------------------------------------------------------

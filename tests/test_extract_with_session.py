@@ -90,8 +90,26 @@ def test_helper_takes_screenshot_when_path_provided(tmp_path):
     info = _fake_info()
     target = str(tmp_path / "viewport.png")
     out = _extract_with_session(session, info, screenshot_path=target)
-    session.screenshot.assert_called_once_with(target)
+    session.screenshot.assert_called_once_with(target, timeout_s=30)
     assert out["screenshot_path"] == target
+
+
+def test_helper_propagates_screenshot_timeout(tmp_path):
+    """screenshot_timeout_s must reach session.screenshot, not stay default.
+
+    Regression guard for the Phase 3a hardcoded-30s bug: heavy sites
+    (Stripe) need >30s viewport screenshot, and CLI --timeout was being
+    silently ignored at the screenshot step.
+    """
+    session = _fake_session()
+    info = _fake_info()
+    target = str(tmp_path / "viewport.png")
+    _extract_with_session(
+        session, info,
+        screenshot_path=target,
+        screenshot_timeout_s=90,
+    )
+    session.screenshot.assert_called_once_with(target, timeout_s=90)
 
 
 def test_helper_does_not_open_or_close_session():

@@ -39,6 +39,26 @@ def test_screenshot_passes_path_to_agent_browser():
     assert args[0][:2] == ("screenshot", "/tmp/x.png")
 
 
+def test_screenshot_default_timeout_is_30s():
+    """Default timeout_s is 30 — preserved for callers not specifying one."""
+    sess = BrowserSession.__new__(BrowserSession)
+    sess._run = MagicMock(return_value="")
+    sess.screenshot("/tmp/x.png")
+    assert sess._run.call_args.kwargs.get("timeout_s") == 30
+
+
+def test_screenshot_timeout_s_propagates_to_agent_browser():
+    """Override timeout_s reaches the underlying _run subprocess call.
+
+    Regression guard: pre-fix, screenshot hardcoded timeout_s=30, so heavy
+    sites (Stripe) silently failed even when CLI --timeout 90 was set.
+    """
+    sess = BrowserSession.__new__(BrowserSession)
+    sess._run = MagicMock(return_value="")
+    sess.screenshot("/tmp/x.png", timeout_s=90)
+    assert sess._run.call_args.kwargs.get("timeout_s") == 90
+
+
 def test_screenshot_path_contract_in_cli():
     """When --out is set, screenshot is written to <out-base>.png next to it.
 
