@@ -14,8 +14,11 @@ DESIGN_MD_NPM_VERSION = "0.1.1"
 DESIGN_MD_NPM_PACKAGE = f"@google/design.md@{DESIGN_MD_NPM_VERSION}"
 
 # Generator string written into DESIGN.md metadata.
-# Updated to single-source canonical __version__ in 3a.7.
-GENERATOR = "design-from-url v0.1"
+# Single-sourced from __init__.__version__ (Phase 3a 3a.7) — DO NOT
+# hardcode another version string anywhere; the metadata test asserts
+# all 3 sources (pyproject.toml, __version__, GENERATOR) match.
+from design_from_url import __version__
+GENERATOR = f"design-from-url v{__version__}"
 
 # Minimum agent-browser version supporting `set media [dark|light]`.
 # Verified by 3a.1 probe; runtime check raises DarkModeUnsupported below
