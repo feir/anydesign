@@ -65,6 +65,9 @@ class RunReport:
     prose_findings: int = 0
     fixer_actions: list[FixerAction] = field(default_factory=list)
     retry_rounds: int = 0
+    # Phase 3a D4: count of prose sections that exhausted retry and used
+    # the deterministic fallback. >=2 promotes to degraded_reason='prose_partial'.
+    prose_fallback_count: int = 0
     final_status: FinalStatus = "PASS"
     degraded_reason: DegradedReason = None
     exit_code: int = 0

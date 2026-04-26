@@ -397,14 +397,18 @@ def _cmd_build(args: argparse.Namespace) -> int:
 
 def _patch_design_md(
     out_path: str, overview_text: str, dos_text: str, component_yaml: str,
+    *, prose_sections: dict[str, str] | None = None,
 ) -> None:
     """Replace LLM placeholders + inject component YAML into DESIGN.md.
 
     Operations (all idempotent):
     - Overview placeholder → overview_text (or skip if placeholder absent)
     - Do's & Don'ts placeholder → dos_text
-    - Remaining placeholders (colors_prose / typography_prose / layout_prose /
-      components_prose) → empty (deleted) — Phase 2 doesn't yet generate these
+    - 4 prose placeholders (colors_prose / typography_prose / layout_prose /
+      components_prose) →
+        * if `prose_sections` provided, replace each with that section's text
+        * otherwise (Phase 2 callers, tests), substitute deterministic
+          stubs labelled "prose generation deferred"
     - components_yaml → injected under YAML frontmatter `components:` key
       (creates the key if missing)
     """
@@ -418,14 +422,14 @@ def _patch_design_md(
     text = text.replace(
         "<!-- LLM_PLACEHOLDER:dos_donts -->", dos_text.strip(),
     )
-    # Drop unfilled placeholders (sections kept as headers but body empty)
-    for stub in (
-        "<!-- LLM_PLACEHOLDER:colors_prose -->",
-        "<!-- LLM_PLACEHOLDER:typography_prose -->",
-        "<!-- LLM_PLACEHOLDER:layout_prose -->",
-        "<!-- LLM_PLACEHOLDER:components_prose -->",
-    ):
-        text = text.replace(stub, "_(prose generation deferred to Phase 2.x)_")
+    # 4 prose stubs — Phase 3a fills these via prose_sections.
+    _PROSE_KEYS = ("colors_prose", "typography_prose", "layout_prose", "components_prose")
+    for key in _PROSE_KEYS:
+        stub = f"<!-- LLM_PLACEHOLDER:{key} -->"
+        if prose_sections and key in prose_sections:
+            text = text.replace(stub, prose_sections[key].strip())
+        else:
+            text = text.replace(stub, "_(prose generation deferred to Phase 2.x)_")
 
     # Inject component YAML into frontmatter (if any)
     if component_yaml.strip():
@@ -537,8 +541,29 @@ def _run_self_lint_loop(
                 report.write(out_path + ".run_report.json")
                 return report.exit_code
 
+    # Stage 4 — Generate 4 prose sections (colors / typography / layout /
+    # components). Each section retries once on failure; persistent failure
+    # falls back to a deterministic stub. >=2 fallbacks promotes to
+    # degraded_reason='prose_partial' (decided at final-status time below).
+    from design_from_url.prose_sections import generate_all_prose_sections
+    prose_section_texts, prose_fallback_count = generate_all_prose_sections(
+        registry_yaml=registry_yaml,
+        screenshot_path=screenshot_path,
+        model=args.llm_model,
+        llm_generate=llm.generate,
+    )
+    report.prose_fallback_count = prose_fallback_count
+    if prose_fallback_count == 1:
+        print(
+            "INFO: 1 prose section fell back to deterministic stub (PASS)",
+            file=sys.stderr,
+        )
+
     # Patch all sections into DESIGN.md
-    _patch_design_md(out_path, overview_text, dos_text, component_yaml)
+    _patch_design_md(
+        out_path, overview_text, dos_text, component_yaml,
+        prose_sections=prose_section_texts,
+    )
 
     # Stage 2 — Self-lint loop (initial + 2 retries)
     for round_idx in range(3):
@@ -593,7 +618,11 @@ def _run_self_lint_loop(
     # Final lint check
     final = lint_design_md_structured(out_path)
     if final.errors == 0:
-        report.update_status(None)
+        # Phase 3a D4: lint clean, but >=2 prose fallbacks still flag DEGRADED.
+        if prose_fallback_count >= 2:
+            report.update_status("prose_partial")
+        else:
+            report.update_status(None)
     else:
         # Loop exhausted with errors remaining → DEGRADED
         report.update_status("prose_retry_exhausted")
