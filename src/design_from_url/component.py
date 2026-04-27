@@ -188,7 +188,7 @@ def pick_button_primary(
     *,
     llm_generate: Callable[..., str],
     primary_crop: str | None = None,
-    model: str = "local/gemma4:26b",
+    model: str = "local/vision",
 ) -> str:
     """Ask the LLM to designate ONE candidate as button-primary.
 

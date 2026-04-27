@@ -59,7 +59,7 @@ class RunReport:
     url: str
     extracted_at: str                    # ISO 8601
     registry_size: dict[str, int]        # {"colors": 12, "typography": 6, ...}
-    llm_model: str                       # e.g. "local/gemma4:26b"
+    llm_model: str                       # e.g. "local/vision"
     findings_total: int = 0
     schema_findings: int = 0
     prose_findings: int = 0

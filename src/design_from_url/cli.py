@@ -111,15 +111,15 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help=(
             "Phase 2: enable LLM-driven prose generation + self-lint loop. "
-            "Requires local oMLX (gemma4:26b) — vision call cannot fall back "
+            "Requires local oMLX vision model — vision call cannot fall back "
             "to cloud (cloud has no vision input). On unavailability, exits 2 "
             "with degraded_reason=omx_failover."
         ),
     )
     p_build.add_argument(
         "--llm-model",
-        default="local/gemma4:26b",
-        help="LLM model identifier (must be local/...). Default: local/gemma4:26b.",
+        default="local/vision",
+        help="LLM model identifier (must be local/...). Default: local/vision.",
     )
     p_build.add_argument(
         "--with-dark",

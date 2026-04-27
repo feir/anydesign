@@ -1,8 +1,8 @@
 """Thin wrapper around shared/lib/llm_client.py with vision-call protection.
 
 CRITICAL contract (plan-review C1): `llm_client.chat()` auto-falls back from
-local oMLX to cloud sonnet for `gemma4:26b` and silently drops `images=`
-during fallback (llm_client.py:382-396). For vision-bearing calls we MUST
+local oMLX to cloud sonnet and silently drops `images=` during fallback
+(llm_client.py:382-396). For vision-bearing calls we MUST
 bypass that fallback, since the cloud model has no image input — falling
 back would silently produce hallucinated prose.
 
@@ -90,7 +90,7 @@ def generate(
     if not model.startswith("local/"):
         raise ValueError(
             f"vision calls require a local model (image_path is set); got {model!r}. "
-            f"Pass model='local/gemma4:26b' or similar."
+            f"Pass model='local/vision' or similar."
         )
     local_alias = model.removeprefix("local/")
     omlx_model = _LOCAL_TO_OMLX_MODEL.get(local_alias, local_alias)
